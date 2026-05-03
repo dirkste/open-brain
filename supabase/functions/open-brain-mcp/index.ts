@@ -346,50 +346,48 @@ app.use("*", cors({
   allowHeaders: ["Content-Type", "x-brain-key"],
 }));
 
-app.post("/capture", async (c) => {
-  const provided = c.req.header("x-brain-key") || new URL(c.req.url).searchParams.get("key");
-  if (!isValidKey(provided, MCP_ACCESS_KEY)) {
-    return c.json({ error: "Invalid or missing access key" }, 401);
-  }
-
-  let content: string;
-  try {
-    ({ content } = await c.req.json());
-  } catch {
-    return c.json({ error: "Invalid JSON body" }, 400);
-  }
-
-  if (!content?.trim()) {
-    return c.json({ error: "content is required" }, 400);
-  }
-
-  try {
-    const [embedding, metadata] = await Promise.all([
-      getEmbedding(content),
-      extractMetadata(content),
-    ]);
-
-    const { error } = await supabase.from("thoughts").insert({
-      content,
-      embedding,
-      metadata: { ...metadata, source: "web" },
-    });
-
-    if (error) return c.json({ error: error.message }, 500);
-
-    return c.json({ ok: true, metadata });
-  } catch (err: unknown) {
-    return c.json({ error: (err as Error).message }, 500);
-  }
-});
-
 app.all("*", async (c) => {
-  // Accept access key via header OR URL query parameter
-  const provided = c.req.header("x-brain-key") || new URL(c.req.url).searchParams.get("key");
+  const url = new URL(c.req.url);
+  const provided = c.req.header("x-brain-key") || url.searchParams.get("key");
+
   if (!isValidKey(provided, MCP_ACCESS_KEY)) {
     return c.json({ error: "Invalid or missing access key" }, 401);
   }
 
+  // REST endpoint: POST …/capture
+  if (c.req.method === "POST" && url.pathname.endsWith("/capture")) {
+    let content: string;
+    try {
+      ({ content } = await c.req.json());
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!content?.trim()) {
+      return c.json({ error: "content is required" }, 400);
+    }
+
+    try {
+      const [embedding, metadata] = await Promise.all([
+        getEmbedding(content),
+        extractMetadata(content),
+      ]);
+
+      const { error } = await supabase.from("thoughts").insert({
+        content,
+        embedding,
+        metadata: { ...metadata, source: "web" },
+      });
+
+      if (error) return c.json({ error: error.message }, 500);
+
+      return c.json({ ok: true, metadata });
+    } catch (err: unknown) {
+      return c.json({ error: (err as Error).message }, 500);
+    }
+  }
+
+  // MCP transport
   const transport = new StreamableHTTPTransport();
   await server.connect(transport);
   return transport.handleRequest(c);

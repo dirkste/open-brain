@@ -169,8 +169,9 @@
         });
 
         if (res.status === 401) {
-          localStorage.removeItem(KEY_STORAGE);
-          showSetup();
+          statusEl.className = "err";
+          statusEl.textContent = "Invalid key — check your brain key in settings.";
+          submitBtn.disabled = false;
           return;
         }
 
