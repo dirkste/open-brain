@@ -3,6 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { aggregateMetadata, isValidKey, sortTop10 } from "./_lib.ts";
@@ -339,29 +340,27 @@ server.registerTool(
 
 const app = new Hono();
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, x-brain-key",
-};
-
-app.options("/capture", (c) => c.text("", 204, CORS_HEADERS));
+app.use("*", cors({
+  origin: "*",
+  allowMethods: ["GET", "POST", "OPTIONS"],
+  allowHeaders: ["Content-Type", "x-brain-key"],
+}));
 
 app.post("/capture", async (c) => {
   const provided = c.req.header("x-brain-key") || new URL(c.req.url).searchParams.get("key");
   if (!isValidKey(provided, MCP_ACCESS_KEY)) {
-    return c.json({ error: "Invalid or missing access key" }, 401, CORS_HEADERS);
+    return c.json({ error: "Invalid or missing access key" }, 401);
   }
 
   let content: string;
   try {
     ({ content } = await c.req.json());
   } catch {
-    return c.json({ error: "Invalid JSON body" }, 400, CORS_HEADERS);
+    return c.json({ error: "Invalid JSON body" }, 400);
   }
 
   if (!content?.trim()) {
-    return c.json({ error: "content is required" }, 400, CORS_HEADERS);
+    return c.json({ error: "content is required" }, 400);
   }
 
   try {
@@ -376,11 +375,11 @@ app.post("/capture", async (c) => {
       metadata: { ...metadata, source: "web" },
     });
 
-    if (error) return c.json({ error: error.message }, 500, CORS_HEADERS);
+    if (error) return c.json({ error: error.message }, 500);
 
-    return c.json({ ok: true, metadata }, 200, CORS_HEADERS);
+    return c.json({ ok: true, metadata });
   } catch (err: unknown) {
-    return c.json({ error: (err as Error).message }, 500, CORS_HEADERS);
+    return c.json({ error: (err as Error).message }, 500);
   }
 });
 
