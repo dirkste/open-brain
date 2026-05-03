@@ -348,7 +348,7 @@ app.use("*", cors({
 
 app.all("*", async (c) => {
   const url = new URL(c.req.url);
-  const provided = c.req.header("x-brain-key") || url.searchParams.get("key");
+  const provided = c.req.header("x-brain-key");
 
   if (!isValidKey(provided, MCP_ACCESS_KEY)) {
     return c.json({ error: "Invalid or missing access key" }, 401);
@@ -365,6 +365,10 @@ app.all("*", async (c) => {
 
     if (!content?.trim()) {
       return c.json({ error: "content is required" }, 400);
+    }
+
+    if (content.length > 10000) {
+      return c.json({ error: "content too long (max 10000 characters)" }, 413);
     }
 
     try {
