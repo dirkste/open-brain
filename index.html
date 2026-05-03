@@ -137,12 +137,39 @@
       showSetup();
     }
 
-    // Save key
-    document.getElementById("saveKey").addEventListener("click", () => {
+    // Save key — validate against server before storing
+    const saveKeyBtn = document.getElementById("saveKey");
+    const setupStatus = setupEl.querySelector("#status");
+
+    document.getElementById("saveKey").addEventListener("click", async () => {
       const key = document.getElementById("keyInput").value.trim();
       if (!key) return;
-      localStorage.setItem(KEY_STORAGE, key);
-      showApp();
+
+      saveKeyBtn.disabled = true;
+      setupStatus.className = "";
+      setupStatus.textContent = "Checking key...";
+
+      try {
+        const res = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-brain-key": key },
+          body: JSON.stringify({ content: "" }),
+        });
+
+        if (res.status === 401) {
+          setupStatus.className = "err";
+          setupStatus.textContent = "Invalid key — try again.";
+          return;
+        }
+
+        localStorage.setItem(KEY_STORAGE, key);
+        showApp();
+      } catch (err) {
+        setupStatus.className = "err";
+        setupStatus.textContent = "Could not reach server.";
+      } finally {
+        saveKeyBtn.disabled = false;
+      }
     });
 
     // Submit thought
