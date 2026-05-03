@@ -387,6 +387,11 @@ app.all("*", async (c) => {
     }
   }
 
+  // Health check — used by web client to validate key
+  if (c.req.method === "GET" && url.pathname.endsWith("/health")) {
+    return c.json({ ok: true });
+  }
+
   // MCP transport
   const transport = new StreamableHTTPTransport();
   await server.connect(transport);

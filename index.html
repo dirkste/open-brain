@@ -109,7 +109,9 @@
   </div>
 
   <script>
-    const ENDPOINT = "https://ptitndzqwctzbclborxd.supabase.co/functions/v1/open-brain-mcp/capture";
+    const BASE = "https://ptitndzqwctzbclborxd.supabase.co/functions/v1/open-brain-mcp";
+    const ENDPOINT = BASE + "/capture";
+    const HEALTH = BASE + "/health";
     const KEY_STORAGE = "brain_key";
 
     const setupEl = document.getElementById("setup");
@@ -150,21 +152,21 @@
       setupStatus.textContent = "Checking key...";
 
       try {
-        const res = await fetch(ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-brain-key": key },
-          body: JSON.stringify({ content: "" }),
+        const res = await fetch(HEALTH, {
+          headers: { "x-brain-key": key },
         });
 
-        if (res.status === 401) {
+        if (res.status === 200) {
+          localStorage.setItem(KEY_STORAGE, key);
+          showApp();
+        } else if (res.status === 401) {
           setupStatus.className = "err";
           setupStatus.textContent = "Invalid key — try again.";
-          return;
+        } else {
+          setupStatus.className = "err";
+          setupStatus.textContent = `Unexpected error (${res.status}) — try again.`;
         }
-
-        localStorage.setItem(KEY_STORAGE, key);
-        showApp();
-      } catch (err) {
+      } catch (_err) {
         setupStatus.className = "err";
         setupStatus.textContent = "Could not reach server.";
       } finally {
