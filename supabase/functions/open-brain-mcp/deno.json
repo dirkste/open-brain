@@ -1,7 +1,8 @@
 {
   "tasks": {
     "test": "deno test _lib.test.ts",
-    "test:integration": "deno test --allow-env --allow-net --env=.env tests/client.test.ts"
+    "test:integration": "deno test --allow-env --allow-net --env=.env tests/client.test.ts",
+    "test:endpoints": "deno test --allow-env --allow-net --env=.env tests/endpoints.test.ts"
   },
   "imports": {
     "@hono/mcp": "npm:@hono/mcp@0.1.1",
