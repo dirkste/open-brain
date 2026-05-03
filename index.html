@@ -132,12 +132,21 @@
       setupEl.style.display = "block";
     }
 
-    // Boot
-    if (localStorage.getItem(KEY_STORAGE)) {
-      showApp();
-    } else {
-      showSetup();
+    // Boot — validate stored key against server before showing capture screen
+    async function boot() {
+      const key = localStorage.getItem(KEY_STORAGE);
+      if (!key) { showSetup(); return; }
+
+      const res = await fetch(HEALTH, { headers: { "x-brain-key": key } }).catch(() => null);
+      if (res?.status === 200) {
+        showApp();
+      } else {
+        localStorage.removeItem(KEY_STORAGE);
+        showSetup();
+      }
     }
+
+    boot();
 
     // Save key — validate against server before storing
     const saveKeyBtn = document.getElementById("saveKey");
