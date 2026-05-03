@@ -65,7 +65,7 @@
 
     button:disabled { opacity: 0.4; cursor: default; }
 
-    #status {
+#status {
       margin-top: 12px;
       font-size: 0.875rem;
       text-align: center;
@@ -198,9 +198,8 @@
         });
 
         if (res.status === 401) {
-          statusEl.className = "err";
-          statusEl.textContent = "Invalid key — check your brain key in settings.";
-          submitBtn.disabled = false;
+          localStorage.removeItem(KEY_STORAGE);
+          showSetup();
           return;
         }
 
