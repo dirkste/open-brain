@@ -339,6 +339,51 @@ server.registerTool(
 
 const app = new Hono();
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, x-brain-key",
+};
+
+app.options("/capture", (c) => c.text("", 204, CORS_HEADERS));
+
+app.post("/capture", async (c) => {
+  const provided = c.req.header("x-brain-key") || new URL(c.req.url).searchParams.get("key");
+  if (!isValidKey(provided, MCP_ACCESS_KEY)) {
+    return c.json({ error: "Invalid or missing access key" }, 401, CORS_HEADERS);
+  }
+
+  let content: string;
+  try {
+    ({ content } = await c.req.json());
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400, CORS_HEADERS);
+  }
+
+  if (!content?.trim()) {
+    return c.json({ error: "content is required" }, 400, CORS_HEADERS);
+  }
+
+  try {
+    const [embedding, metadata] = await Promise.all([
+      getEmbedding(content),
+      extractMetadata(content),
+    ]);
+
+    const { error } = await supabase.from("thoughts").insert({
+      content,
+      embedding,
+      metadata: { ...metadata, source: "web" },
+    });
+
+    if (error) return c.json({ error: error.message }, 500, CORS_HEADERS);
+
+    return c.json({ ok: true, metadata }, 200, CORS_HEADERS);
+  } catch (err: unknown) {
+    return c.json({ error: (err as Error).message }, 500, CORS_HEADERS);
+  }
+});
+
 app.all("*", async (c) => {
   // Accept access key via header OR URL query parameter
   const provided = c.req.header("x-brain-key") || new URL(c.req.url).searchParams.get("key");
