@@ -65,7 +65,7 @@
 
     button:disabled { opacity: 0.4; cursor: default; }
 
-#status {
+    #status, #setup-status {
       margin-top: 12px;
       font-size: 0.875rem;
       text-align: center;
@@ -73,8 +73,8 @@
       color: #888;
     }
 
-    #status.ok { color: #4ade80; }
-    #status.err { color: #f87171; }
+    #status.ok, #setup-status.ok { color: #4ade80; }
+    #status.err, #setup-status.err { color: #f87171; }
 
     /* Setup screen */
     #setup { display: none; width: 100%; max-width: 480px; }
@@ -99,7 +99,7 @@
     <p>Enter your brain key to get started:</p>
     <input type="password" id="keyInput" placeholder="brain key" autocomplete="off" />
     <button id="saveKey">Save</button>
-    <div id="status"></div>
+    <div id="setup-status"></div>
   </div>
 
   <div id="app" style="display:none">
@@ -109,17 +109,17 @@
   </div>
 
   <script>
-    const BASE = "https://ptitndzqwctzbclborxd.supabase.co/functions/v1/open-brain-mcp";
+    // === CONFIG ===
+    const SUPABASE_URL = "https://ptitndzqwctzbclborxd.supabase.co";
+    // ==============
+
+    const BASE = `${SUPABASE_URL}/functions/v1/open-brain-mcp`;
     const ENDPOINT = BASE + "/capture";
     const HEALTH = BASE + "/health";
     const KEY_STORAGE = "brain_key";
 
     const setupEl = document.getElementById("setup");
     const appEl = document.getElementById("app");
-
-    function getStatus(parent) {
-      return parent.querySelector("#status");
-    }
 
     function showApp() {
       setupEl.style.display = "none";
@@ -150,7 +150,7 @@
 
     // Save key — validate against server before storing
     const saveKeyBtn = document.getElementById("saveKey");
-    const setupStatus = setupEl.querySelector("#status");
+    const setupStatus = setupEl.querySelector("#setup-status");
 
     document.getElementById("saveKey").addEventListener("click", async () => {
       const key = document.getElementById("keyInput").value.trim();
