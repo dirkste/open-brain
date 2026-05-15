@@ -65,7 +65,7 @@
 
     button:disabled { opacity: 0.4; cursor: default; }
 
-    #status, #setup-status {
+    #status, #setup-status, #search-status {
       margin-top: 12px;
       font-size: 0.875rem;
       text-align: center;
@@ -73,8 +73,72 @@
       color: #888;
     }
 
-    #status.ok, #setup-status.ok { color: #4ade80; }
-    #status.err, #setup-status.err { color: #f87171; }
+    #status.ok, #setup-status.ok, #search-status.ok { color: #4ade80; }
+    #status.err, #setup-status.err, #search-status.err { color: #f87171; }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+
+    .tab {
+      flex: 1;
+      width: auto;
+      margin-top: 0;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #555;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab.active { color: #f0f0f0; border-color: #555; }
+
+    .search-input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      color: #f0f0f0;
+      font-size: 0.9rem;
+      padding: 14px 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus { border-color: #555; }
+
+    #results { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+    .result-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+
+    .result-content {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #f0f0f0;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .result-meta {
+      font-size: 0.75rem;
+      color: #666;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .result-type { color: #888; font-weight: 600; }
 
     /* Setup screen */
     #setup { display: none; width: 100%; max-width: 480px; }
@@ -103,9 +167,23 @@
   </div>
 
   <div id="app" style="display:none">
-    <textarea id="thought" placeholder="What's on your mind?" autofocus></textarea>
-    <button id="submit">Capture</button>
-    <div id="status"></div>
+    <div class="tabs">
+      <button class="tab active" id="tab-capture">Capture</button>
+      <button class="tab" id="tab-search">Search</button>
+    </div>
+
+    <div id="capture-view">
+      <textarea id="thought" placeholder="What's on your mind?" autofocus></textarea>
+      <button id="submit">Capture</button>
+      <div id="status"></div>
+    </div>
+
+    <div id="search-view" style="display:none">
+      <input type="text" id="search-input" class="search-input" placeholder="Search your thoughts..." />
+      <button id="search-btn">Search</button>
+      <div id="search-status"></div>
+      <div id="results"></div>
+    </div>
   </div>
 
   <script>
@@ -236,6 +314,134 @@
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         submitBtn.click();
       }
+    });
+
+    // Tab switching
+    const tabCaptureBtn = document.getElementById("tab-capture");
+    const tabSearchBtn  = document.getElementById("tab-search");
+    const captureView   = document.getElementById("capture-view");
+    const searchView    = document.getElementById("search-view");
+
+    tabCaptureBtn.addEventListener("click", () => {
+      captureView.style.display = "block";
+      searchView.style.display  = "none";
+      tabCaptureBtn.classList.add("active");
+      tabSearchBtn.classList.remove("active");
+    });
+
+    tabSearchBtn.addEventListener("click", () => {
+      captureView.style.display = "none";
+      searchView.style.display  = "block";
+      tabSearchBtn.classList.add("active");
+      tabCaptureBtn.classList.remove("active");
+      document.getElementById("search-input").focus();
+    });
+
+    // Search
+    const SEARCH_ENDPOINT = BASE + "/search";
+    const searchBtn    = document.getElementById("search-btn");
+    const searchInput  = document.getElementById("search-input");
+    const searchStatus = document.getElementById("search-status");
+    const resultsEl    = document.getElementById("results");
+
+    function relativeDate(iso) {
+      const diff = Date.now() - new Date(iso).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1)  return "just now";
+      if (mins < 60) return mins + "m ago";
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24)  return hrs + "h ago";
+      return Math.floor(hrs / 24) + "d ago";
+    }
+
+    function renderResults(results) {
+      resultsEl.innerHTML = "";
+      if (!results.length) {
+        searchStatus.className = "";
+        searchStatus.textContent = "No matching thoughts found.";
+        return;
+      }
+      searchStatus.textContent = "";
+      results.forEach(function(r) {
+        const m = r.metadata || {};
+        const topics = Array.isArray(m.topics) ? m.topics.join(", ") : "";
+        const sim = r.similarity ? Math.round(r.similarity * 100) + "%" : "";
+
+        const card = document.createElement("div");
+        card.className = "result-card";
+
+        const content = document.createElement("div");
+        content.className = "result-content";
+        content.textContent = r.content;
+
+        const meta = document.createElement("div");
+        meta.className = "result-meta";
+        const addMeta = (text, cls) => {
+          if (meta.children.length) {
+            const sep = document.createElement("span");
+            sep.style.color = "#333";
+            sep.textContent = "·";
+            meta.appendChild(sep);
+          }
+          const s = document.createElement("span");
+          if (cls) s.className = cls;
+          s.textContent = text;
+          meta.appendChild(s);
+        };
+        if (m.type) addMeta(m.type, "result-type");
+        if (topics) addMeta(topics);
+        addMeta(relativeDate(r.created_at));
+        if (sim)    addMeta(sim);
+
+        card.appendChild(content);
+        card.appendChild(meta);
+        resultsEl.appendChild(card);
+      });
+    }
+
+    async function doSearch() {
+      const query = searchInput.value.trim();
+      if (!query) return;
+
+      searchBtn.disabled = true;
+      searchStatus.className = "";
+      searchStatus.textContent = "Searching...";
+      resultsEl.innerHTML = "";
+
+      try {
+        const res = await fetch(SEARCH_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-brain-key": localStorage.getItem(KEY_STORAGE),
+          },
+          body: JSON.stringify({ query }),
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem(KEY_STORAGE);
+          showSetup();
+          return;
+        }
+
+        if (!res.ok) {
+          const { error } = await res.json().catch(() => ({}));
+          throw new Error(error || "HTTP " + res.status);
+        }
+
+        const { results } = await res.json();
+        renderResults(results);
+      } catch (err) {
+        searchStatus.className = "err";
+        searchStatus.textContent = err.message;
+      } finally {
+        searchBtn.disabled = false;
+      }
+    }
+
+    searchBtn.addEventListener("click", doSearch);
+    searchInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") doSearch();
     });
   </script>
 </body>
