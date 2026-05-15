@@ -54,7 +54,7 @@ async function extractMetadata(text: string): Promise<Record<string, unknown>> {
 - "action_items": array of implied to-dos (empty if none)
 - "dates_mentioned": array of dates YYYY-MM-DD (empty if none)
 - "topics": array of 1-3 short topic tags (always at least one)
-- "type": one of "observation", "task", "idea", "reference", "person_note"
+- "type": one of "observation", "task", "idea", "reference", "person_note", "coding_project"
 Only extract what's explicitly there.`,
         },
         { role: "user", content: text },
@@ -165,7 +165,7 @@ server.registerTool(
       "List recently captured thoughts with optional filters by type, topic, person, or time range.",
     inputSchema: {
       limit: z.number().optional().default(10),
-      type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note"),
+      type: z.string().optional().describe("Filter by type: observation, task, idea, reference, person_note, coding_project"),
       topic: z.string().optional().describe("Filter by topic tag"),
       person: z.string().optional().describe("Filter by person mentioned"),
       days: z.number().optional().describe("Only thoughts from the last N days"),
@@ -386,6 +386,36 @@ app.all("*", async (c) => {
       if (error) return c.json({ error: error.message }, 500);
 
       return c.json({ ok: true, metadata });
+    } catch (err: unknown) {
+      return c.json({ error: (err as Error).message }, 500);
+    }
+  }
+
+  // REST endpoint: POST …/search
+  if (c.req.method === "POST" && url.pathname.endsWith("/search")) {
+    let query: string;
+    let limit = 10;
+    try {
+      ({ query, limit = 10 } = await c.req.json());
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!query?.trim()) {
+      return c.json({ error: "query is required" }, 400);
+    }
+
+    try {
+      const qEmb = await getEmbedding(query);
+      const { data, error } = await supabase.rpc("match_thoughts", {
+        query_embedding: qEmb,
+        match_threshold: 0.3,
+        match_count: Math.min(limit, 20),
+        filter: {},
+      });
+
+      if (error) return c.json({ error: error.message }, 500);
+      return c.json({ ok: true, results: data || [] });
     } catch (err: unknown) {
       return c.json({ error: (err as Error).message }, 500);
     }
