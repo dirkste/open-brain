@@ -71,3 +71,57 @@ Deno.test("capture: valid key with empty content returns 400", async () => {
   await res.body?.cancel();
   assertEquals(res.status, 400);
 });
+
+// --- POST /search ---
+
+Deno.test("search: wrong key returns 401", async () => {
+  const res = await fetch(`${BASE}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-brain-key": WRONG_KEY },
+    body: JSON.stringify({ query: "test" }),
+  });
+  await res.body?.cancel();
+  assertEquals(res.status, 401);
+});
+
+Deno.test("search: missing key returns 401", async () => {
+  const res = await fetch(`${BASE}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: "test" }),
+  });
+  await res.body?.cancel();
+  assertEquals(res.status, 401);
+});
+
+Deno.test("search: empty query returns 400", async () => {
+  const res = await fetch(`${BASE}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-brain-key": VALID_KEY },
+    body: JSON.stringify({ query: "" }),
+  });
+  await res.body?.cancel();
+  assertEquals(res.status, 400);
+});
+
+Deno.test("search: invalid JSON returns 400", async () => {
+  const res = await fetch(`${BASE}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-brain-key": VALID_KEY },
+    body: "not json",
+  });
+  await res.body?.cancel();
+  assertEquals(res.status, 400);
+});
+
+Deno.test("search: valid key with query returns 200 with results array", async () => {
+  const res = await fetch(`${BASE}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-brain-key": VALID_KEY },
+    body: JSON.stringify({ query: "test" }),
+  });
+  const body = await res.json();
+  assertEquals(res.status, 200);
+  assertEquals(body.ok, true);
+  assertEquals(Array.isArray(body.results), true);
+});

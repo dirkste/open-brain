@@ -376,12 +376,22 @@
 
         const meta = document.createElement("div");
         meta.className = "result-meta";
-        const parts = [];
-        if (m.type) parts.push('<span class="result-type">' + m.type + "</span>");
-        if (topics) parts.push("<span>" + topics + "</span>");
-        parts.push("<span>" + relativeDate(r.created_at) + "</span>");
-        if (sim)    parts.push("<span>" + sim + "</span>");
-        meta.innerHTML = parts.join('<span style="color:#333">·</span>');
+        const addMeta = (text, cls) => {
+          if (meta.children.length) {
+            const sep = document.createElement("span");
+            sep.style.color = "#333";
+            sep.textContent = "·";
+            meta.appendChild(sep);
+          }
+          const s = document.createElement("span");
+          if (cls) s.className = cls;
+          s.textContent = text;
+          meta.appendChild(s);
+        };
+        if (m.type) addMeta(m.type, "result-type");
+        if (topics) addMeta(topics);
+        addMeta(relativeDate(r.created_at));
+        if (sim)    addMeta(sim);
 
         card.appendChild(content);
         card.appendChild(meta);

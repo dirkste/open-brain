@@ -405,12 +405,18 @@ app.all("*", async (c) => {
       return c.json({ error: "query is required" }, 400);
     }
 
+    if (query.length > 500) {
+      return c.json({ error: "query too long (max 500 characters)" }, 413);
+    }
+
+    const safeLimit = Math.min(Math.max(1, Math.trunc(Number(limit)) || 10), 20);
+
     try {
       const qEmb = await getEmbedding(query);
       const { data, error } = await supabase.rpc("match_thoughts", {
         query_embedding: qEmb,
         match_threshold: 0.3,
-        match_count: Math.min(limit, 20),
+        match_count: safeLimit,
         filter: {},
       });
 
