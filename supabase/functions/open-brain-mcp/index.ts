@@ -156,7 +156,94 @@ server.registerTool(
   }
 );
 
-// Tool 2: List Recent
+// Tool 2: Ask Brain (conversational synthesis)
+server.registerTool(
+  "ask_brain",
+  {
+    title: "Ask Your Brain",
+    description:
+      "Answer a question conversationally using the user's captured thoughts. Unlike search_thoughts which returns raw entries, this tool synthesizes a natural language answer. Use it when the user asks a question expecting a response, not a list of records.",
+    inputSchema: {
+      question: z.string().describe("The question to answer"),
+      limit: z.number().optional().default(8),
+    },
+  },
+  async ({ question, limit }) => {
+    try {
+      const qEmb = await getEmbedding(question);
+      const { data, error } = await supabase.rpc("match_thoughts", {
+        query_embedding: qEmb,
+        match_threshold: 0.3,
+        match_count: Math.min(Math.max(1, Math.trunc(Number(limit)) || 8), 15),
+        filter: {},
+      });
+
+      if (error) {
+        return {
+          content: [{ type: "text" as const, text: `Search error: ${error.message}` }],
+          isError: true,
+        };
+      }
+
+      if (!data?.length) {
+        return {
+          content: [{ type: "text" as const, text: "I don't have anything captured about that." }],
+        };
+      }
+
+      const context = data
+        .map((t: { content: string; metadata: Record<string, unknown>; created_at: string }) => {
+          const m = t.metadata || {};
+          const tags = [
+            m.type ? `Type: ${m.type}` : null,
+            Array.isArray(m.topics) && m.topics.length
+              ? `Topics: ${(m.topics as string[]).join(", ")}`
+              : null,
+            `Captured: ${new Date(t.created_at).toLocaleDateString()}`,
+          ]
+            .filter(Boolean)
+            .join(" | ");
+          return `[${tags}]\n${t.content}`;
+        })
+        .join("\n\n");
+
+      const r = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a personal knowledge assistant with access to the user's captured thoughts, notes, and ideas.
+Answer the user's question conversationally using only the provided thoughts.
+Synthesize naturally — don't just list entries. Note dates or patterns where relevant.
+If the thoughts don't fully answer the question, say so honestly.`,
+            },
+            {
+              role: "user",
+              content: `Question: ${question}\n\nRelevant thoughts:\n\n${context}`,
+            },
+          ],
+        }),
+      });
+
+      const d = await r.json();
+      const answer = d.choices?.[0]?.message?.content ?? "Could not generate an answer.";
+      return { content: [{ type: "text" as const, text: answer }] };
+    } catch (err: unknown) {
+      return {
+        content: [{ type: "text" as const, text: `Error: ${(err as Error).message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Tool 3: List Recent
 server.registerTool(
   "list_thoughts",
   {
@@ -229,7 +316,7 @@ server.registerTool(
   }
 );
 
-// Tool 3: Stats
+// Tool 4: Stats
 server.registerTool(
   "thought_stats",
   {
@@ -284,7 +371,7 @@ server.registerTool(
   }
 );
 
-// Tool 4: Capture Thought
+// Tool 5: Capture Thought
 server.registerTool(
   "capture_thought",
   {
