@@ -125,7 +125,7 @@ server.registerTool(
           const m = t.metadata || {};
           const parts = [
             `--- Result ${i + 1} (${(t.similarity * 100).toFixed(1)}% match) ---`,
-            `Captured: ${new Date(t.created_at).toLocaleDateString()}`,
+            `Captured: ${new Date(t.created_at).toISOString().slice(0, 10)}`,
             `Type: ${m.type || "unknown"}`,
           ];
           if (Array.isArray(m.topics) && m.topics.length)
@@ -164,8 +164,8 @@ server.registerTool(
     description:
       "Answer a question conversationally using the user's captured thoughts. Unlike search_thoughts which returns raw entries, this tool synthesizes a natural language answer. Use it when the user asks a question expecting a response, not a list of records.",
     inputSchema: {
-      question: z.string().describe("The question to answer"),
-      limit: z.number().optional().default(8),
+      question: z.string().min(1).max(2000).describe("The question to answer"),
+      limit: z.number().int().min(1).max(15).optional().default(8),
     },
   },
   async ({ question, limit }) => {
@@ -174,7 +174,7 @@ server.registerTool(
       const { data, error } = await supabase.rpc("match_thoughts", {
         query_embedding: qEmb,
         match_threshold: 0.3,
-        match_count: Math.min(Math.max(1, Math.trunc(Number(limit)) || 8), 15),
+        match_count: limit,
         filter: {},
       });
 
@@ -199,11 +199,12 @@ server.registerTool(
             Array.isArray(m.topics) && m.topics.length
               ? `Topics: ${(m.topics as string[]).join(", ")}`
               : null,
-            `Captured: ${new Date(t.created_at).toLocaleDateString()}`,
+            `Captured: ${new Date(t.created_at).toISOString().slice(0, 10)}`,
           ]
             .filter(Boolean)
             .join(" | ");
-          return `[${tags}]\n${t.content}`;
+          const body = t.content.length > 1000 ? t.content.slice(0, 1000) + "…" : t.content;
+          return `[${tags}]\n${body}`;
         })
         .join("\n\n");
 
@@ -230,6 +231,11 @@ If the thoughts don't fully answer the question, say so honestly.`,
           ],
         }),
       });
+
+      if (!r.ok) {
+        const msg = await r.text().catch(() => "");
+        throw new Error(`OpenRouter chat failed: ${r.status} ${msg}`);
+      }
 
       const d = await r.json();
       const answer = d.choices?.[0]?.message?.content ?? "Could not generate an answer.";
