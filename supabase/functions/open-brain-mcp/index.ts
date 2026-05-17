@@ -185,13 +185,30 @@ server.registerTool(
         };
       }
 
-      if (!data?.length) {
+      let thoughts = data ?? [];
+
+      if (!thoughts.length) {
+        const { data: recent, error: recentErr } = await supabase
+          .from("thoughts")
+          .select("content, metadata, created_at")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (recentErr) {
+          return {
+            content: [{ type: "text" as const, text: `Search error: ${recentErr.message}` }],
+            isError: true,
+          };
+        }
+        thoughts = recent ?? [];
+      }
+
+      if (!thoughts.length) {
         return {
-          content: [{ type: "text" as const, text: "I don't have anything captured about that." }],
+          content: [{ type: "text" as const, text: "You haven't captured any thoughts yet." }],
         };
       }
 
-      const context = data
+      const context = thoughts
         .map((t: { content: string; metadata: Record<string, unknown>; created_at: string }) => {
           const m = t.metadata || {};
           const tags = [
