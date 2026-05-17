@@ -551,11 +551,23 @@ app.all("*", async (c) => {
 
       if (error) return c.json({ error: error.message }, 500);
 
-      if (!data?.length) {
-        return c.json({ ok: true, answer: "I don't have anything captured about that." });
+      let thoughts = data ?? [];
+
+      if (!thoughts.length) {
+        const { data: recent, error: recentErr } = await supabase
+          .from("thoughts")
+          .select("content, metadata, created_at")
+          .order("created_at", { ascending: false })
+          .limit(safeLimit);
+        if (recentErr) return c.json({ error: recentErr.message }, 500);
+        thoughts = recent ?? [];
       }
 
-      const context = data
+      if (!thoughts.length) {
+        return c.json({ ok: true, answer: "You haven't captured any thoughts yet." });
+      }
+
+      const context = thoughts
         .map((t: { content: string; metadata: Record<string, unknown>; created_at: string }) => {
           const m = t.metadata || {};
           const tags = [
