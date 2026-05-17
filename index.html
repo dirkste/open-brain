@@ -313,7 +313,7 @@
 
         if (!res.ok) {
           const { error } = await res.json().catch(() => ({}));
-          throw new Error(error || `HTTP ${res.status}`);
+          throw new Error(typeof error === 'string' ? error : `HTTP ${res.status}`);
         }
 
         const { metadata } = await res.json();
@@ -455,7 +455,7 @@
 
         if (!res.ok) {
           const { error } = await res.json().catch(() => ({}));
-          throw new Error(error || "HTTP " + res.status);
+          throw new Error(typeof error === 'string' ? error : "HTTP " + res.status);
         }
 
         const { results } = await res.json();
@@ -508,7 +508,7 @@
 
         if (!res.ok) {
           const { error } = await res.json().catch(() => ({}));
-          throw new Error(error || "HTTP " + res.status);
+          throw new Error(typeof error === 'string' ? error : "HTTP " + res.status);
         }
 
         const { answer } = await res.json();
