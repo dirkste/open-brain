@@ -2,3 +2,5 @@
 *.env.local
 node_modules/
 .DS_Store
+supabase/.temp/
+.claude/settings.local.json
