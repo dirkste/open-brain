@@ -8,7 +8,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { aggregateMetadata, isValidKey, sortTop10 } from "./_lib.ts";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
