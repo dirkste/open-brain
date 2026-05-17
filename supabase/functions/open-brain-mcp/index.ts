@@ -520,6 +520,95 @@ app.all("*", async (c) => {
     }
   }
 
+  // REST endpoint: POST …/ask
+  if (c.req.method === "POST" && url.pathname.endsWith("/ask")) {
+    let question: string;
+    let limit = 8;
+    try {
+      ({ question, limit = 8 } = await c.req.json());
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!question?.trim()) {
+      return c.json({ error: "question is required" }, 400);
+    }
+
+    if (question.length > 2000) {
+      return c.json({ error: "question too long (max 2000 characters)" }, 413);
+    }
+
+    const safeLimit = Math.min(Math.max(1, Math.trunc(Number(limit)) || 8), 15);
+
+    try {
+      const qEmb = await getEmbedding(question);
+      const { data, error } = await supabase.rpc("match_thoughts", {
+        query_embedding: qEmb,
+        match_threshold: 0.3,
+        match_count: safeLimit,
+        filter: {},
+      });
+
+      if (error) return c.json({ error: error.message }, 500);
+
+      if (!data?.length) {
+        return c.json({ ok: true, answer: "I don't have anything captured about that." });
+      }
+
+      const context = data
+        .map((t: { content: string; metadata: Record<string, unknown>; created_at: string }) => {
+          const m = t.metadata || {};
+          const tags = [
+            m.type ? `Type: ${m.type}` : null,
+            Array.isArray(m.topics) && m.topics.length
+              ? `Topics: ${(m.topics as string[]).join(", ")}`
+              : null,
+            `Captured: ${new Date(t.created_at).toISOString().slice(0, 10)}`,
+          ]
+            .filter(Boolean)
+            .join(" | ");
+          const body = t.content.length > 1000 ? t.content.slice(0, 1000) + "…" : t.content;
+          return `[${tags}]\n${body}`;
+        })
+        .join("\n\n");
+
+      const r = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a personal knowledge assistant with access to the user's captured thoughts, notes, and ideas.
+Answer the user's question conversationally using only the provided thoughts.
+Synthesize naturally — don't just list entries. Note dates or patterns where relevant.
+If the thoughts don't fully answer the question, say so honestly.`,
+            },
+            {
+              role: "user",
+              content: `Question: ${question}\n\nRelevant thoughts:\n\n${context}`,
+            },
+          ],
+        }),
+      });
+
+      if (!r.ok) {
+        const msg = await r.text().catch(() => "");
+        throw new Error(`OpenRouter chat failed: ${r.status} ${msg}`);
+      }
+
+      const d = await r.json();
+      const answer = d.choices?.[0]?.message?.content ?? "Could not generate an answer.";
+      return c.json({ ok: true, answer });
+    } catch (err: unknown) {
+      return c.json({ error: (err as Error).message }, 500);
+    }
+  }
+
   // Health check — used by web client to validate key
   if (c.req.method === "GET" && url.pathname.endsWith("/health")) {
     return c.json({ ok: true });
