@@ -154,6 +154,13 @@
     .result-type { color: #888; font-weight: 600; }
 
     /* Setup screen */
+    #version {
+      margin-top: 20px;
+      font-size: 0.75rem;
+      color: #333;
+      text-align: center;
+    }
+
     #setup { display: none; width: 100%; max-width: 480px; }
     #setup p { color: #888; font-size: 0.9rem; margin-bottom: 12px; }
     #setup input {
@@ -171,6 +178,8 @@
 </head>
 <body>
   <h1>open brain</h1>
+
+  <div id="version"></div>
 
   <div id="setup">
     <p>Enter your brain key to get started:</p>
@@ -238,6 +247,8 @@
 
       const res = await fetch(HEALTH, { headers: { "x-brain-key": key } }).catch(() => null);
       if (res?.status === 200) {
+        const data = await res.json().catch(() => ({}));
+        if (data.version) document.getElementById("version").textContent = "v" + data.version;
         showApp();
       } else {
         localStorage.removeItem(KEY_STORAGE);

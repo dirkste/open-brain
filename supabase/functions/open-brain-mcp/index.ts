@@ -8,6 +8,8 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { aggregateMetadata, isValidKey, sortTop10 } from "./_lib.ts";
 
+const VERSION = "1.0.0";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
@@ -640,7 +642,7 @@ If the thoughts don't fully answer the question, say so honestly.`,
 
   // Health check — used by web client to validate key
   if (c.req.method === "GET" && url.pathname.endsWith("/health")) {
-    return c.json({ ok: true });
+    return c.json({ ok: true, version: VERSION });
   }
 
   // MCP transport

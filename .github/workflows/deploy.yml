@@ -1,0 +1,44 @@
+name: Bump version and deploy
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "supabase/functions/**"
+      - "index.html"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          CURRENT=$(grep -oP 'const VERSION = "\K[^"]+' supabase/functions/open-brain-mcp/index.ts)
+          NEW=$(echo $CURRENT | awk -F. '{print $1"."$2"."$3+1}')
+          sed -i "s/const VERSION = \"$CURRENT\"/const VERSION = \"$NEW\"/" supabase/functions/open-brain-mcp/index.ts
+          echo "version=$NEW" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add supabase/functions/open-brain-mcp/index.ts
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.version }} [skip ci]"
+          git push
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy edge function
+        run: supabase functions deploy open-brain-mcp --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
