@@ -8,6 +8,8 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { aggregateMetadata, isValidKey, sortTop10 } from "./_lib.ts";
 
+const VERSION = "1.0.0";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
@@ -185,13 +187,30 @@ server.registerTool(
         };
       }
 
-      if (!data?.length) {
+      let thoughts = data ?? [];
+
+      if (!thoughts.length) {
+        const { data: recent, error: recentErr } = await supabase
+          .from("thoughts")
+          .select("content, metadata, created_at")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        if (recentErr) {
+          return {
+            content: [{ type: "text" as const, text: `Search error: ${recentErr.message}` }],
+            isError: true,
+          };
+        }
+        thoughts = recent ?? [];
+      }
+
+      if (!thoughts.length) {
         return {
-          content: [{ type: "text" as const, text: "I don't have anything captured about that." }],
+          content: [{ type: "text" as const, text: "You haven't captured any thoughts yet." }],
         };
       }
 
-      const context = data
+      const context = thoughts
         .map((t: { content: string; metadata: Record<string, unknown>; created_at: string }) => {
           const m = t.metadata || {};
           const tags = [
@@ -551,11 +570,23 @@ app.all("*", async (c) => {
 
       if (error) return c.json({ error: error.message }, 500);
 
-      if (!data?.length) {
-        return c.json({ ok: true, answer: "I don't have anything captured about that." });
+      let thoughts = data ?? [];
+
+      if (!thoughts.length) {
+        const { data: recent, error: recentErr } = await supabase
+          .from("thoughts")
+          .select("content, metadata, created_at")
+          .order("created_at", { ascending: false })
+          .limit(safeLimit);
+        if (recentErr) return c.json({ error: recentErr.message }, 500);
+        thoughts = recent ?? [];
       }
 
-      const context = data
+      if (!thoughts.length) {
+        return c.json({ ok: true, answer: "You haven't captured any thoughts yet." });
+      }
+
+      const context = thoughts
         .map((t: { content: string; metadata: Record<string, unknown>; created_at: string }) => {
           const m = t.metadata || {};
           const tags = [
@@ -611,7 +642,7 @@ If the thoughts don't fully answer the question, say so honestly.`,
 
   // Health check — used by web client to validate key
   if (c.req.method === "GET" && url.pathname.endsWith("/health")) {
-    return c.json({ ok: true });
+    return c.json({ ok: true, version: VERSION });
   }
 
   // MCP transport
